@@ -1,0 +1,72 @@
+name: Theme Lint Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate-theme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ✅ Validate manifest.json syntax
+      - name: Validate manifest.json files
+        run: |
+          echo "Checking manifest.json syntax..."
+          for file in $(find . -name "manifest.json"); do
+            echo "Validating $file"
+            python -m json.tool "$file" > /dev/null || exit 1
+          done
+
+      # ✅ Check required files exist
+      - name: Check required structure
+        run: |
+          echo "Checking required files..."
+          for file in $(find . -name "manifest.json"); do
+            dir=$(dirname "$file")
+
+            if [ ! -d "$dir/images" ]; then
+              echo "❌ Missing images folder in $dir"
+              exit 1
+            fi
+
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing manifest.json in $dir"
+              exit 1
+            fi
+          done
+
+      # ✅ Check image references inside manifest
+      - name: Validate image paths
+        run: |
+          echo "Checking image references..."
+          for file in $(find . -name "manifest.json"); do
+            dir=$(dirname "$file")
+
+            grep -o 'images/[^"]*' "$file" | while read img; do
+              if [ ! -f "$dir/$img" ]; then
+                echo "❌ Missing image: $img in $dir"
+                exit 1
+              else
+                echo "✅ Found $img"
+              fi
+            done
+          done
+
+      # ✅ Optional: Check naming conventions
+      - name: Enforce naming rules
+        run: |
+          echo "Checking naming rules..."
+          for file in $(find . -name "manifest.json"); do
+            name=$(grep '"name"' "$file")
+
+            if [[ "$name" != *"Ash"* && "$name" != *"Theme"* ]]; then
+              echo "⚠️ Warning: Naming not following convention in $file"
+            fi
+          done
+
+      - name: All checks passed
+        run: echo "🎉 Linting successful!"
